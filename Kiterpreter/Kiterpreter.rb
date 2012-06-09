@@ -905,7 +905,7 @@ class Kiterpreter
 	end
 	
 	def button_load_file()
-		@assembly_file = UI.openpanel("Load Contraptor assembly file", "", "*.rb") and load @assembly_file
+		@assembly_file = UI.openpanel("Load Kiterpreter assembly file", "", "*.rb") and load @assembly_file
 		Sketchup.active_model.definitions.purge_unused
 		status "Done"
 	end
