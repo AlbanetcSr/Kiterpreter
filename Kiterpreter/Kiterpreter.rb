@@ -754,7 +754,7 @@ class Catalog
 	end
 	
 	def download_part(part)
-		return nil if url.nil?
+		return nil if @url.nil?
 		
 		Dir.chdir(@sketchup_dir)
 		Dir.mkdir(@path) unless File.directory?(@path)
