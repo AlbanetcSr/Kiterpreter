@@ -897,7 +897,7 @@ class Kiterpreter
 		
 		tools.each do |t|			
 			cmd = UI::Command.new(t[:text]) { t[:function].call }
-			path = Sketchup.find_support_file t[:icon], "plugins/Contraptor/Images/"	
+			path = Sketchup.find_support_file t[:icon], "plugins/Kiterpreter/Images/"	
 			cmd.small_icon = cmd.large_icon = path
 			cmd.tooltip = cmd.status_bar_text = cmd.menu_text = t[:text]
 			toolbar = toolbar.add_item cmd
