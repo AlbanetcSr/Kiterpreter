@@ -1,6 +1,5 @@
 # Kiterpreter - Skethcup plugin to generate kit assembly instructions
 
-
 require 'sketchup.rb'
 include Math
 
