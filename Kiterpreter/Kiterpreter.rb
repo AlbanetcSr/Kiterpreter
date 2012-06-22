@@ -1,5 +1,6 @@
 # Kiterpreter - Skethcup plugin to generate kit assembly instructions
 
+
 require 'sketchup.rb'
 include Math
 
@@ -163,9 +164,10 @@ class Part
 
 	def translate!(xyz=[0,0,0])
 		transformation = Geom::Transformation.new(xyz)
-		transformation = @parent.world_transformation * transformation * @parent.world_transformation.inverse if @parent
+		@world_transformation = transformation * @world_transformation
+		# T is specified in the world reference frame, while Sketchup applies T in the parent reference frame
+		transformation = @parent.world_transformation.inverse * transformation * @parent.world_transformation if @parent
 		@component.transform! transformation
-		@world_transformation = transformation*@world_transformation
 		status "Part '#{@catalog.name}::#{@name}' translated: #{xyz.to_a.join(",")}"
 		self
 	end
@@ -184,20 +186,23 @@ class Part
 		point = center ? @component.bounds.center : @component.transformation.origin
 		status "Rotating around point: #{point}"
 		transformation = Geom::Transformation.rotation(point, [1,0,0], xyz[0]*PI/180)
+		@world_transformation = transformation * @world_transformation
+#		transformation = @parent.world_transformation.inverse * transformation * @parent.world_transformation if @parent
 		@component.transform!(transformation)
-		@world_transformation = transformation*@world_transformation
 		
 		point = center ? @component.bounds.center : @component.transformation.origin
 		status "Rotating around point: #{point}"		
 		transformation = Geom::Transformation.rotation(point, [0,1,0], xyz[1]*PI/180)
+		@world_transformation = transformation * @world_transformation
+#		transformation = @parent.world_transformation.inverse * transformation * @parent.world_transformation if @parent
 		@component.transform!(transformation)
-		@world_transformation = transformation*@world_transformation
 		
 		point = center ? @component.bounds.center : @component.transformation.origin
 		status "Rotating around point: #{point}"		
 		transformation = Geom::Transformation.rotation(point, [0,0,1], xyz[2]*PI/180)
+		@world_transformation = transformation * @world_transformation
+#		transformation = @parent.world_transformation.inverse * transformation * @parent.world_transformation if @parent
 		@component.transform!(transformation)
-		@world_transformation = transformation*@world_transformation
 		
 		status "Part '#{@catalog.name}::#{@name}' rotated: #{xyz.to_a.join(",")}"
 		self
@@ -433,10 +438,11 @@ class Assembly
 	
 	def translate!(xyz=[0,0,0])
 		transformation = Geom::Transformation.new(xyz)
-		transformation = @parent.world_transformation * transformation * @parent.world_transformation.inverse if @parent
-		@group.transform! transformation
 		@world_transformation = transformation*@world_transformation
 		propagate_transformation(transformation)
+		# T is specified in the world reference frame, while Sketchup applies T in the parent reference frame
+		transformation = @parent.world_transformation.inverse * transformation * @parent.world_transformation if @parent
+		@group.transform! transformation
 		status "Assembly '#{@name}' translated: #{xyz.to_a.join(",")}"
 		self
 	end
@@ -454,20 +460,20 @@ class Assembly
 	
 		point = center ? @group.bounds.center : @group.transformation.origin
 		transformation = Geom::Transformation.rotation(point, [1,0,0], xyz[0]*PI/180)
-		@group.transform!(transformation)
 		@world_transformation = transformation*@world_transformation
+		@group.transform!(transformation)
 		propagate_transformation(transformation)
 		
 		point = center ? @group.bounds.center : @group.transformation.origin
 		transformation = Geom::Transformation.rotation(point, [0,1,0], xyz[1]*PI/180)
-		@group.transform!(transformation)
 		@world_transformation = transformation*@world_transformation
+		@group.transform!(transformation)
 		propagate_transformation(transformation)
 		
 		point = center ? @group.bounds.center : @group.transformation.origin
 		transformation = Geom::Transformation.rotation(point, [0,0,1], xyz[2]*PI/180)
-		@group.transform!(transformation)
 		@world_transformation = transformation*@world_transformation
+		@group.transform!(transformation)
 		propagate_transformation(transformation)
 		
 		status "Assembly '#{@name}' rotated: #{xyz.to_a.join(",")}"
@@ -597,7 +603,7 @@ class Assembly
 	
 	def add_part(part)
 		part.parent.nil? or raise "Part '#{part.catalog.name}::#{part.name}' already added to assembly '#{part.parent.name}'"
-		cloned_component = @group.entities.add_instance part.component.definition, @world_transformation.inverse*part.component.transformation
+		cloned_component = @group.entities.add_instance part.component.definition, @world_transformation.inverse * part.component.transformation
 		cloned_component.layer = part.component.layer
 		Sketchup.active_model.entities.erase_entities part.component
 		part.component = cloned_component
