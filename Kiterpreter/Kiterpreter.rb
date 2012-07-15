@@ -825,7 +825,7 @@ class Camera
 		# generate screenshot file name
 		@@defaults[:global_sequence_no] += 1
 		file_name = "%03d" % @@defaults[:global_sequence_no]
-		file_name = "#{file_name}-#{@subject.name.gsub(' ','-')}" unless @subject.nil?
+		file_name = "#{file_name}-#{@name.gsub(' ','-')}" unless @subject.nil?
 		
 		Sketchup.active_model.active_view.camera = @camera
 		if @subject.nil?
