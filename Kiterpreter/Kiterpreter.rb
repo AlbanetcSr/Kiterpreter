@@ -145,6 +145,10 @@ class Part
 		ObjectSpace.each_object(Part) {|p| yield p}
 	end
 	
+	def definition
+		{:catalog=>@catalog, :name=>@name}
+	end
+
 	def initialize(catalog, name)
 		@catalog, @name = catalog, name
 		@catalog.download_part(@name) unless @catalog.part_available?(@name)
@@ -799,12 +803,14 @@ class Camera
 		@defaults = @@defaults.merge(options)
 		
 		@camera = Sketchup::Camera.new(@defaults[:eye], @defaults[:target], @defaults[:up])
+        @camera_up = @defaults[:up]
 		@camera.perspective = @defaults[:perspective]
 	end
 	
 	def set!(orientation)
-		orientation = {:eye=>@camera.eye, :target=>[0,0,0], :up=>[0,0,1]}.merge(orientation)
+		orientation = {:eye=>@camera.eye, :target=>@camera.target, :up=>[0,0,1]}.merge(orientation)
 		@camera.set(orientation[:eye], orientation[:target], orientation[:up])
+        @camera_up = orientation[:up]
 		self
 	end
 	
@@ -816,6 +822,17 @@ class Camera
 	def subject!(subject=nil)
 		raise "Camera subject must be either Part, Assembly or nil" unless [NilClass,Part,Assembly].include?(subject.class)
 		@subject = subject
+        target_entity = nil
+        target_entity = @subject.component if @subject.class==Part
+        target_entity = @subject.group if @subject.class==Assembly
+        
+        if target_entity
+            target = target_entity.bounds.center
+            target.transform!(@subject.parent.world_transformation) if @subject.parent
+            @camera.set(camera.eye, target, camera.up)
+            tilt = @camera.direction + Geom::Vector3d.new(@camera_up)
+            @camera.set(camera.eye, target, tilt)
+        end
 		self
 	end
 	
@@ -825,10 +842,10 @@ class Camera
 		# generate screenshot file name
 		@@defaults[:global_sequence_no] += 1
 		file_name = "%03d" % @@defaults[:global_sequence_no]
-		file_name = "#{file_name}-#{@name.gsub(' ','-')}" unless @subject.nil?
+		file_name = "#{file_name}-#{@name.gsub(' ','-')}"
 		
-		Sketchup.active_model.active_view.camera = @camera
 		if @subject.nil?
+            Sketchup.active_model.active_view.camera = @camera
 			view = Sketchup.active_model.active_view.zoom_extents
 			view.write_image(File.join(@@defaults[:image_path],"#{file_name}.png"), @@defaults[:image_width], @@defaults[:image_height], true)
 			status "Screenshot #{file_name} taken"
@@ -842,28 +859,42 @@ class Camera
 				parent.show
 				parent = parent.parent
 			end
+			parent = @subject.parent
+            parent.remove(@subject) if parent
 
+            Sketchup.active_model.active_view.camera = @camera
 			view = Sketchup.active_model.active_view
-			original_eye = view.camera.eye	# this is used later, see below
-			original_up = view.camera.up
+            puts view.camera.eye.to_s
+            puts view.camera.target.to_s
+            puts view.camera.up.to_s
+
+#			original_eye = view.camera.eye	# this is used later, see below
+#			original_up = view.camera.up
 			target_entity = @subject.class==Assembly ? @subject.group : @subject.component
 			
 			view.zoom target_entity
-			# the following workaround is needed because view.zoom does not take into account the transformation of the parent group (a bug?)
-			if @subject.parent
-				eye = view.camera.eye.transform(@subject.parent.world_transformation)
-				target = view.camera.target.transform(@subject.parent.world_transformation)
-				up = original_up
+            puts view.camera.eye.to_s
+            puts view.camera.target.to_s
+            puts view.camera.up.to_s
 
-				# now we're zoomed into desired subject but not from the desired angle
-				# the following moves the camera eye to the desired angle while preseving zoom
-				eye_target_distance = (target - eye).length
-				
-				# assume center of the entity bounding box as a target
+            parent.add(@subject) if parent
+			# the following workaround is needed because view.zoom does not take into account the transformation of the parent group (a bug?)
+			if nil #@subject.parent
+				# transform eye with parent
+				eye = view.camera.eye.transform(@subject.parent.world_transformation)
+				# target is the center of the entity bounding box
 				target = target_entity.bounds.center.transform(@subject.parent.world_transformation)
+
+				# now we're zoomed into desired subject but not from the desired angle - calculate new eye point
+				eye_target_distance = (target - eye).length
 				target_to_cam_vector = original_eye - target
 				target_to_cam_vector.length = eye_target_distance
 				eye = target + target_to_cam_vector
+				
+				# calculate camera up vector
+				horizon_vector = target_to_cam_vector * Geom::Vector3d.new(0,0,1)
+				up = horizon_vector * target_to_cam_vector
+				up.length = 1
 				
 				# finally set camera
 				view.camera.set(eye, target, up)
